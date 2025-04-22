@@ -1,8 +1,11 @@
 //! Attribute‑style DSL for defining finite‑state machines.
 //!
+//! See the [`rust-automata` crate](https://docs.rs/rust-automata/) for more details.
+//!
 //! Documentation features:
 //! - `"mermaid"`: embed a clickable Mermaid state diagram.
 //! - `"dot"`: embed a clickable Graphviz state diagram.
+//! - `"dsl"`: (re)generate a DSL for the machine.
 
 #![recursion_limit = "256"]
 

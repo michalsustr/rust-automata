@@ -7,8 +7,8 @@ documentation = "https://docs.rs/rust-automata/"
 readme = "../README.md"
 license = "MIT"
 categories = ["data-structures", "rust-patterns"]
-keywords = ["fsm", "automata", "state machine", "mealy machine", "moore machine"]
-version = "0.0.1"
+keywords = ["fsm", "automata", "state", "machine"]
+version = "0.0.2"
 authors = ["Michal Sustr"]
 edition = "2021"
 
@@ -20,7 +20,7 @@ dsl = ["rust-automata-macros/dsl"]
 
 [dependencies]
 aquamarine = { version = "0.6", optional = true }
-rust-automata-macros = { path = "../rust-automata-macros", version = "0.0.1" }
+rust-automata-macros = { path = "../rust-automata-macros", version = "0.0.2" }
 strum = "0.27"
 strum_macros = "0.27"
 chrono = "0.4"

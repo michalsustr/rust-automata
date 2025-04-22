@@ -1,4 +1,6 @@
-#![doc = include_str!("../../README.md")]
+//! Attribute‑style DSL for defining finite‑state machines.
+//!
+//! See the [rust-automata crate](https://crates.io/crates/rust-automata/) for high-level usage.
 
 pub use rust_automata_macros::state_machine;
 

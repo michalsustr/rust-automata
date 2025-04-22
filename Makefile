@@ -27,3 +27,7 @@ fmt:
 
 lint:
 	cargo clippy -- -D warnings
+
+pre-publish: fmt lint check test doc
+	git diff --exit-code
+	cargo publish -p rust-automata-macros --dry-run

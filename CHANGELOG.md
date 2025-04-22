@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog][keepachangelog], and this project
 adheres to [Semantic Versioning][semver].
 
+## [0.0.2] - 2025-04-23
+### Update
+* Improve documentation.
+
+
 ## [0.0.1] - 2025-04-22
 ### Added
 * Initial release. Supports Mealy machines with guards and handlers.
