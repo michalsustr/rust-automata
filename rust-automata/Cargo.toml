@@ -1,0 +1,30 @@
+[package]
+name = "rust-automata"
+description = "A framework and a DSL for building finite state machines in Rust"
+repository = "https://github.com/michalsustr/rust-automata"
+homepage = "https://github.com/michalsustr/rust-automata"
+documentation = "https://docs.rs/rust-automata/"
+readme = "../README.md"
+license = "MIT"
+categories = ["data-structures", "rust-patterns"]
+keywords = ["fsm", "automata", "state machine", "mealy machine", "moore machine"]
+version = "0.0.1"
+authors = ["Michal Sustr"]
+edition = "2021"
+
+[features]
+default = ["dsl"]
+mermaid = ["aquamarine", "rust-automata-macros/mermaid"]
+dot = ["rust-automata-macros/dot"]
+dsl = ["rust-automata-macros/dsl"]
+
+[dependencies]
+aquamarine = { version = "0.6", optional = true }
+rust-automata-macros = { path = "../rust-automata-macros", version = "0.0.1" }
+strum = "0.27"
+strum_macros = "0.27"
+chrono = "0.4"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]                            
+trybuild = "1.0"

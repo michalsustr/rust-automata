@@ -1,0 +1,8 @@
+[package]
+name = "examples"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rust-automata = { path = "../rust-automata", version = "0.0.1", features = ["mermaid", "dot", "dsl"] }
+strum_macros = "0.27"

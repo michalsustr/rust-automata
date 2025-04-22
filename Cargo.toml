@@ -1,0 +1,3 @@
+[workspace]
+resolver = "2"
+members = ["rust-automata", "rust-automata-macros", "examples"]

@@ -1,0 +1,21 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/viz.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/full.render.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var vizElements = document.querySelectorAll("pre.language-dot");
+        vizElements.forEach(function(el) {
+            var engine = el.getAttribute("data-engine") || "dot";
+            var code = el.textContent;
+            var viz = new Viz();
+            
+            viz.renderSVGElement(code, { engine: engine })
+                .then(function(element) {
+                    el.style.display = "none";
+                    el.parentNode.insertBefore(element, el);
+                })
+                .catch(function(error) {
+                    console.error(error);
+                });
+        });
+    });
+</script>

@@ -1,0 +1,29 @@
+[package]
+name = "rust-automata-macros"
+description = "Macros for rust-automata DSL"
+repository = "https://github.com/michalsustr/rust-automata"
+homepage = "https://github.com/michalsustr/rust-automata"
+documentation = "https://docs.rs/rust-automata-dsl/"
+readme = "../README.md"
+license = "MIT"
+categories = ["data-structures", "rust-patterns"]
+keywords = ["fsm", "automata", "state machine", "mealy machine", "moore machine"]
+version = "0.0.1"
+authors = ["Michal Sustr"]
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[features]
+mermaid = []
+dot = []
+dsl = []
+
+[dependencies]
+proc-macro2 = "1"
+syn = { version = "2", features = ["full"] }
+quote = "1"
+heck = "0.5"
+strum = "0.27"
+strum_macros = "0.27"

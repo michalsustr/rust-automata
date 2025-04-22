@@ -1,0 +1,13 @@
+error: cannot find attribute `automaton` in this scope
+  --> tests/fail/unknown_output.rs:10:3
+   |
+10 | #[automaton(
+   |   ^^^^^^^^^
+
+warning: unused import: `rust_automata::*`
+ --> tests/fail/unknown_output.rs:1:5
+  |
+1 | use rust_automata::*;
+  |     ^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
