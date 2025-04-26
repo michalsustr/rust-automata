@@ -5,4 +5,3 @@ edition = "2021"
 
 [dependencies]
 rust-automata = { path = "../rust-automata", version = "0.0.2", features = ["mermaid", "dot", "dsl"] }
-strum_macros = "0.27"

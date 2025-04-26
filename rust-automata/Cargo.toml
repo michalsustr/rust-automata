@@ -21,8 +21,6 @@ dsl = ["rust-automata-macros/dsl"]
 [dependencies]
 aquamarine = { version = "0.6", optional = true }
 rust-automata-macros = { path = "../rust-automata-macros", version = "0.0.2" }
-strum = "0.27"
-strum_macros = "0.27"
 chrono = "0.4"
 serde = { version = "1", features = ["derive"] }
 

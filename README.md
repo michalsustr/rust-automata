@@ -29,6 +29,7 @@ See [examples](https://github.com/michalsustr/rust-automata/tree/main/examples) 
 
 Here is a simple example to give a quick taste:
 
+TODO: use timer for vikings
 ```rust
 mod example {
 use rust_automata::*;
@@ -109,12 +110,13 @@ Major:
 
 Minor (soon):
 - [ ] Guards as bool expressions
-- [ ] Logging transitions
+- [ ] Logging transitions -- tracing?
 - [ ] Configurable `should_panic` for invalid transitions
 - [ ] Better error messages
   - sig checks for guards
   - `dont_expand` for debugging
 - [ ] Reconsider if handlers should get mut self, based on usage examples.
+- [ ] better doc links, nicer dot links
 
 ## Contributions are welcome!
 

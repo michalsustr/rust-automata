@@ -3,6 +3,7 @@
 //! See the [rust-automata crate](https://crates.io/crates/rust-automata/) for high-level usage.
 
 pub use rust_automata_macros::state_machine;
+pub use rust_automata_macros::Display;
 
 #[doc(hidden)]
 #[cfg(feature = "mermaid")]

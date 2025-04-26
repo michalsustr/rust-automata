@@ -15,7 +15,7 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use std::collections::BTreeSet;
-use syn::{parse_macro_input, Ident, ItemStruct, Path};
+use syn::{parse_macro_input, Ident, ItemStruct, Path, DeriveInput};
 
 mod parser;
 use parser::{MachineAttr, Transition};
@@ -394,10 +394,10 @@ pub fn state_machine(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     // Simplify derive attribute generation
     let (derive_attr, derive_struct) = if derives.is_empty() {
-        (quote!( #[derive(strum_macros::Display)] ), quote! {})
+        (quote!( #[derive(Display)] ), quote! {})
     } else {
         (
-            quote!( #[derive(strum_macros::Display, #( #derives ),* )] ),
+            quote!( #[derive(Display, #( #derives ),* )] ),
             quote! {#[derive(Default, #( #derives ),* )]},
         )
     };
@@ -527,4 +527,53 @@ pub fn state_machine(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     output.into()
+}
+
+
+/// A custom proc macro that implements `Display` for enums by extracting the enum variant name.
+///
+/// This macro will generate an implementation such that:
+/// - For a variant named `Foo`, `Display::fmt` will output `"Foo"`.
+/// 
+/// Intended only for the internal use with `rust-automata` crate.
+#[doc(hidden)]
+#[proc_macro_derive(Display)]
+pub fn display_derive(input: TokenStream) -> TokenStream {
+    let ast = parse_macro_input!(input as DeriveInput);
+    let name = ast.ident.clone();
+
+    // Ensure that the macro is only applied to enums.
+    let data_enum = match ast.data {
+        syn::Data::Enum(data_enum) => data_enum,
+        _ => {
+            return syn::Error::new_spanned(
+                ast,
+                "Display can only be derived for enums"
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
+
+    // For each variant, create a match arm that writes the variant's name.
+    let arms = data_enum.variants.into_iter().map(|variant| {
+        let variant_ident = variant.ident;
+        let variant_str = variant_ident.to_string();
+        quote! {
+            Self::#variant_ident(_) => write!(f, "{}", #variant_str)
+        }
+    });
+
+    // Generate the complete implementation of Display.
+    let expanded = quote! {
+        impl std::fmt::Display for #name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    #(#arms),*
+                }
+            }
+        }
+    };
+
+    expanded.into()
 }
