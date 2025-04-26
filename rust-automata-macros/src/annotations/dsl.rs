@@ -4,6 +4,7 @@ use quote::quote;
 
 #[cfg(feature = "dsl")]
 pub fn attr(m: &parser::MachineAttr) -> TokenStream2 {
+    use crate::parser::guard_expr_to_string;
     use crate::util;
     use crate::util::key;
     use std::fmt::Write;
@@ -113,7 +114,12 @@ pub fn attr(m: &parser::MachineAttr) -> TokenStream2 {
 
             // Add guard if present
             if let Some(ref guard) = tr.guard {
-                write!(dsl, " : {}", guard).unwrap();
+                write!(
+                    dsl,
+                    " : {}",
+                    guard_expr_to_string(guard, &|path| util::key(path))
+                )
+                .unwrap();
             }
 
             // Add handler if present

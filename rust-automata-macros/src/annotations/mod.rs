@@ -1,8 +1,6 @@
-mod dot;
 mod dsl;
 mod mermaid;
 
-pub use dot::attr as dot_attr;
 pub use dsl::attr as dsl_attr;
 pub use mermaid::attr as mermaid_attr;
 

@@ -5,10 +5,10 @@ use quote::quote;
 #[cfg(feature = "mermaid")]
 fn transition_label(tr: &parser::Transition) -> String {
     use crate::annotations::doc_link;
+    use crate::parser::guard_expr_to_string;
     use crate::util;
     use crate::GUARD_PREFIX;
     use crate::HANDLE_PREFIX;
-
     let mut label = String::new();
     if let Some(ref i) = tr.input {
         let ev = util::last(i);
@@ -24,15 +24,23 @@ fn transition_label(tr: &parser::Transition) -> String {
         ));
     }
     if let Some(ref g) = tr.guard {
+        let guard_str = guard_expr_to_string(g, &|path| {
+            let guard_id = util::key(path);
+            format!(
+                "<a href='#method.{}'>{}</a>",
+                guard_id,
+                guard_id.replace(GUARD_PREFIX, "")
+            )
+        });
         label.push_str(&format!(
-            "{0}&nbsp;<a href='#method.{g}'>{1}</a>",
+            "{0}&nbsp;{1}",
             if label.is_empty() { "" } else { "<br>" },
-            g.to_string().replace(GUARD_PREFIX, "")
+            guard_str
         ));
     }
     if let Some(ref h) = tr.handler {
         label.push_str(&format!(
-            "{0}&nbsp;<a href='#method.{h}'>{1}</a>",
+            "{0}↪️&nbsp;<a href='#method.{h}'>{1}</a>",
             if label.is_empty() { "" } else { "<br>" },
             h.to_string().replace(HANDLE_PREFIX, "")
         ));
@@ -53,7 +61,11 @@ pub fn attr(m: &parser::MachineAttr) -> TokenStream2 {
     let mut md = String::new();
     writeln!(md, "///```mermaid").unwrap();
     writeln!(md, "///stateDiagram-v2").unwrap();
-    writeln!(md, "///    classDef selfLoop fill:#eee,stroke-width:0px,shape:rectangle,margin:0,padding:0").unwrap();
+    writeln!(
+        md,
+        "///    classDef selfLoop fill:#eee,stroke-width:0px,shape:rectangle,margin:0,padding:0"
+    )
+    .unwrap();
     writeln!(md, "///    [*] --> {}", initial).unwrap();
 
     // Clickable state aliases

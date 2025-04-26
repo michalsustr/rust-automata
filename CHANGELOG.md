@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog][keepachangelog], and this project
 adheres to [Semantic Versioning][semver].
 
+
+## [0.0.3] - 2025-04-26
+### Update
+* Improve error messages.
+* Add support for guards expressions.
+* strum_macros is no longer a dependency.
+* Nicer mermaid diagrams for self-transitions.
+* Dropped `dot` feature due to ugly output.
+
 ## [0.0.2] - 2025-04-23
 ### Update
 * Improve documentation.

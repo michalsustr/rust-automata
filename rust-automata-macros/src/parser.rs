@@ -1,3 +1,4 @@
+use quote::ToTokens;
 use syn::punctuated::Punctuated;
 use syn::{
     parenthesized,
@@ -9,17 +10,21 @@ use syn::{
 ///
 /// Grammar accepted now:
 /// ```text
-/// (from_state[, input]) -> (to_state[, output]) [ : guard ] [ = handler ]
+/// (from_state[, input]) -> (to_state[, output]) [ : guard_expr ] [ = handler ]
 /// ```
-/// * `guard` and `handler` are optional.
-/// * `from_state`, `input`, `to_state`, `output`, `guard`, `handler` are all parsed as `Path`,
+/// * `guard_expr` and `handler` are optional.
+/// * `from_state`, `input`, `to_state`, `output` are all parsed as `Path`,
 ///   so module‐qualified identifiers work out of the box.
+/// * `guard_expr` is parsed as a boolean expression (can use &&, ||, !, etc.)
+/// * `handler` is parsed as an `Ident`.
 pub struct Transition {
     pub from_state: Path,
     pub input: Option<Path>,
     pub to_state: Path,
     pub output: Option<Path>,
-    pub guard: Option<Ident>,
+    // Guaranteed to be one of: syn::Expr::Path(_) | syn::Expr::Binary(_) | syn::Expr::Unary(_)
+    // See also `try_match_guard`
+    pub guard: Option<syn::Expr>,
     pub handler: Option<Ident>,
 }
 
@@ -58,22 +63,28 @@ impl Parse for Transition {
 
         // -------------------------
         // Optional guard after ':'
+        // and optional handler after '='
         // -------------------------
-        let guard: Option<Ident> = if input.peek(Token![:]) {
+        let guard: Option<syn::Expr>;
+        let handler: Option<Ident>;
+        (guard, handler) = if input.peek(Token![:]) {
             input.parse::<Token![:]>()?;
-            Some(input.parse()?)
-        } else {
-            None
-        };
-
-        // -------------------------
-        // Optional handler after '='
-        // -------------------------
-        let handler: Option<Ident> = if input.peek(Token![=]) {
+            let expr: syn::Expr = input.parse()?;
+            match expr {
+                // Having guards and handlers at the same time results in Assign expression.
+                syn::Expr::Assign(assign) => (
+                    Some(try_match_guard(*assign.left)?),
+                    Some(try_match_handler(*assign.right)?),
+                ),
+                _ => (Some(try_match_guard(expr)?), None),
+            }
+        } else if input.peek(Token![=]) {
+            // No guard, but we have a handler
             input.parse::<Token![=]>()?;
-            Some(input.parse()?)
+            (None, Some(input.parse::<Ident>()?))
         } else {
-            None
+            // Neither guard nor handler
+            (None, None)
         };
 
         Ok(Self {
@@ -84,6 +95,45 @@ impl Parse for Transition {
             guard,
             handler,
         })
+    }
+}
+
+// Only accept specific expression types for guard.
+fn try_match_guard(expr: syn::Expr) -> Result<syn::Expr> {
+    match expr {
+        syn::Expr::Path(_) | syn::Expr::Binary(_) | syn::Expr::Unary(_) => Ok(expr),
+        _ => Err(syn::Error::new_spanned(expr, "invalid guard expression")),
+    }
+}
+
+fn try_match_handler(expr: syn::Expr) -> Result<syn::Ident> {
+    match expr {
+        syn::Expr::Path(expr_path) => Ok(expr_path.path.segments.last().unwrap().ident.clone()),
+        _ => Err(syn::Error::new_spanned(expr, "invalid handler expression")),
+    }
+}
+
+pub fn token_to_string<T: ToTokens>(token_source: &T) -> String {
+    let mut ts = proc_macro2::TokenStream::new();
+    token_source.to_tokens(&mut ts);
+    ts.to_string()
+}
+
+pub fn guard_expr_to_string(expr: &syn::Expr, path_fn: &dyn Fn(&syn::Path) -> String) -> String {
+    match expr {
+        syn::Expr::Path(expr_path) => path_fn(&expr_path.path),
+        syn::Expr::Binary(binary) => {
+            let left = guard_expr_to_string(&binary.left, path_fn);
+            let right = guard_expr_to_string(&binary.right, path_fn);
+            let op_str = token_to_string(&binary.op);
+            format!("{} {} {}", left, op_str, right)
+        }
+        syn::Expr::Unary(unary) => {
+            let op_str = token_to_string(&unary.op);
+            let expr = guard_expr_to_string(&unary.expr, path_fn);
+            format!("{}{}", op_str, expr)
+        }
+        _ => panic!("Unsupported guard expression: {}", token_to_string(expr)),
     }
 }
 
@@ -117,7 +167,7 @@ impl Display for Transition {
                 .unwrap_or("NoOutput".to_string()),
             self.guard
                 .as_ref()
-                .map(|g| g.to_string())
+                .map(|g| guard_expr_to_string(g, &|p| key(p)))
                 .unwrap_or("NoGuard".to_string()),
             self.handler
                 .as_ref()
@@ -135,8 +185,12 @@ mod tests {
     fn parses_full_form() {
         let src = r#"(S1) -> (S2, E1) : guard_xyz = handler_xyz"#;
         let t: Transition = syn::parse_str(src).unwrap();
-        assert_eq!(t.guard.unwrap().to_string(), "guard_xyz");
+        assert!(t.guard.is_some());
         assert_eq!(t.handler.unwrap().to_string(), "handler_xyz");
+        assert_eq!(
+            guard_expr_to_string(&t.guard.unwrap(), &|p| key(p)),
+            "guard_xyz"
+        );
     }
 
     #[test]
@@ -147,6 +201,55 @@ mod tests {
         assert!(t.output.is_none());
         assert!(t.guard.is_none());
         assert!(t.handler.is_none());
+    }
+
+    #[test]
+    fn parses_handler_only() {
+        let src = "(A) -> (B) = handler_xyz";
+        let t: Transition = syn::parse_str(src).unwrap();
+        assert!(t.input.is_none());
+        assert!(t.output.is_none());
+        assert!(t.guard.is_none());
+        assert_eq!(t.handler.unwrap().to_string(), "handler_xyz");
+    }
+
+    #[test]
+    fn parses_complex_guard() {
+        let src = r#"(S1) -> (S2) : a && b || !c"#;
+        let t: Transition = syn::parse_str(src).unwrap();
+        assert!(t.guard.is_some());
+        assert_eq!(
+            guard_expr_to_string(&t.guard.unwrap(), &|p| key(p)),
+            "a && b || !c"
+        );
+    }
+
+    #[test]
+    fn parses_complex_guard_with_handler() {
+        let src = r#"(S1) -> (S2) : a && b || !c = handler_xyz"#;
+        let t: Transition = syn::parse_str(src).unwrap();
+        assert!(t.guard.is_some());
+        assert_eq!(t.handler.unwrap().to_string(), "handler_xyz");
+        assert_eq!(
+            guard_expr_to_string(&t.guard.unwrap(), &|p| key(p)),
+            "a && b || !c"
+        );
+    }
+
+    #[test]
+    fn parses_invalid() {
+        let src = r#"blabla"#;
+        assert!(syn::parse_str::<Transition>(src).is_err());
+        let src = r#"(S1,S2)"#;
+        assert!(syn::parse_str::<Transition>(src).is_err());
+        let src = r#"(S1) -> (S2) : a(some_invalid_expr)"#;
+        assert!(syn::parse_str::<Transition>(src).is_err());
+        let src = r#"(S1) -> (S2) = some_invalid_expr(handler_xyz)"#;
+        assert!(syn::parse_str::<Transition>(src).is_err());
+        let src = r#"(S1) -> (S2) : a(some_invalid_expr)"#;
+        assert!(syn::parse_str::<Transition>(src).is_err());
+        let src = r#"(S1) -> (S2) = some_invalid_expr(handler_xyz)"#;
+        assert!(syn::parse_str::<Transition>(src).is_err());
     }
 }
 

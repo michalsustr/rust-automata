@@ -8,7 +8,7 @@ readme = "README.md"
 license = "MIT"
 categories = ["data-structures", "rust-patterns"]
 keywords = ["fsm", "automata", "state", "machine"]
-version = "0.0.2"
+version = "0.0.3"
 authors = ["Michal Sustr"]
 edition = "2021"
 
@@ -17,7 +17,6 @@ proc-macro = true
 
 [features]
 mermaid = []
-dot = []
 dsl = []
 
 [dependencies]

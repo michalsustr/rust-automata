@@ -4,7 +4,6 @@
 //!
 //! Documentation features:
 //! - `"mermaid"`: embed a clickable Mermaid state diagram.
-//! - `"dot"`: embed a clickable Graphviz state diagram.
 //! - `"dsl"`: (re)generate a DSL for the machine.
 
 #![recursion_limit = "256"]
@@ -15,7 +14,7 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use std::collections::BTreeSet;
-use syn::{parse_macro_input, Ident, ItemStruct, Path, DeriveInput};
+use syn::{parse_macro_input, DeriveInput, Ident, ItemStruct, Path};
 
 mod parser;
 use parser::{MachineAttr, Transition};
@@ -148,13 +147,36 @@ mod building_blocks {
     }
 
     pub fn build_guard_code(tr: &Transition, state_var: &Ident) -> TokenStream2 {
-        match tr.guard {
-            // explicit guard that uses values
-            Some(ref guard) if guard.to_string().starts_with(GUARD_PREFIX) => {
-                quote! { if (&self).#guard(&#state_var) }
+        match &tr.guard {
+            Some(expr) => {
+                fn transform_expr(expr: &syn::Expr, state_var: &Ident) -> TokenStream2 {
+                    match expr {
+                        syn::Expr::Path(expr_path) => {
+                            let ident = &expr_path.path;
+                            if key(ident).starts_with(GUARD_PREFIX) {
+                                quote! { (&self).#ident(&#state_var) }
+                            } else {
+                                quote! { (&self).#ident() }
+                            }
+                        }
+                        syn::Expr::Binary(binary) => {
+                            let left = transform_expr(&binary.left, state_var);
+                            let op = &binary.op;
+                            let right = transform_expr(&binary.right, state_var);
+                            quote! { #left #op #right }
+                        }
+                        syn::Expr::Unary(unary) => {
+                            let op = &unary.op;
+                            let expr = transform_expr(&unary.expr, state_var);
+                            quote! { #op #expr }
+                        }
+                        _ => panic!("Unsupported expression: {}", parser::token_to_string(expr)),
+                    }
+                }
+
+                let transformed = transform_expr(expr, state_var);
+                quote! { if #transformed }
             }
-            // guard exists but doesn't require values
-            Some(ref guard) => quote! { if (&self).#guard() },
             // no guard
             None => quote! {},
         }
@@ -197,12 +219,6 @@ mod building_blocks {
                     compile_error_if(
                         h.to_string().starts_with(GUARD_PREFIX),
                         &format!("Handler cannot start with guard_ prefix: {}", h),
-                    )
-                }),
-                tr.guard.as_ref().and_then(|g| {
-                    compile_error_if(
-                        g.to_string().starts_with(HANDLE_PREFIX),
-                        &format!("Guard cannot start with handle_ prefix: {}", g),
                     )
                 }),
             ]
@@ -472,13 +488,11 @@ pub fn state_machine(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     // ────────────────── annotations ──────────────────
     let mermaid_attr = annotations::mermaid_attr(&m);
-    let dot_attr = annotations::dot_attr(&m);
     let dsl_attr = annotations::dsl_attr(&m);
 
     // ────────────────── put everything together ──────────────────
     let output = quote! {
         #mermaid_attr
-        #dot_attr
         #dsl_attr
         #machine_ts
 
@@ -529,12 +543,11 @@ pub fn state_machine(attr: TokenStream, item: TokenStream) -> TokenStream {
     output.into()
 }
 
-
 /// A custom proc macro that implements `Display` for enums by extracting the enum variant name.
 ///
 /// This macro will generate an implementation such that:
 /// - For a variant named `Foo`, `Display::fmt` will output `"Foo"`.
-/// 
+///
 /// Intended only for the internal use with `rust-automata` crate.
 #[doc(hidden)]
 #[proc_macro_derive(Display)]
@@ -546,12 +559,9 @@ pub fn display_derive(input: TokenStream) -> TokenStream {
     let data_enum = match ast.data {
         syn::Data::Enum(data_enum) => data_enum,
         _ => {
-            return syn::Error::new_spanned(
-                ast,
-                "Display can only be derived for enums"
-            )
-            .to_compile_error()
-            .into();
+            return syn::Error::new_spanned(ast, "Display can only be derived for enums")
+                .to_compile_error()
+                .into();
         }
     };
 

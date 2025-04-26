@@ -109,14 +109,12 @@ Major:
 - [ ] Add support for capturing traces of the machine and replaying them.
 
 Minor (soon):
-- [ ] Guards as bool expressions
+- [x] Guards as bool expressions
+- [ ] Performance improvements
 - [ ] Logging transitions -- tracing?
-- [ ] Configurable `should_panic` for invalid transitions
+- [ ] Configurable `should_panic` for invalid transitions  
 - [ ] Better error messages
   - sig checks for guards
-  - `dont_expand` for debugging
-- [ ] Reconsider if handlers should get mut self, based on usage examples.
-- [ ] better doc links, nicer dot links
 
 ## Contributions are welcome!
 
@@ -131,7 +129,6 @@ Also, I'd be happy if you star the repo!
 ## Feature flags
 
 - `mermaid` - generate Mermaid state diagrams in the doc strings. 
-- `dot` - generate DOT state diagrams in the doc strings.
 - `dsl` (default) - re-export the DSL into doc strings.
 
 ## Without DSL
