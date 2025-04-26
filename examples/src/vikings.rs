@@ -11,7 +11,7 @@
 
 use rust_automata::{clock::*, timestamp::*, *};
 
-mod events {
+pub mod events {
     /// Viking tries to grab the torch
     #[derive(Default)]
     pub struct Take;
@@ -20,7 +20,7 @@ mod events {
     pub struct Release;
 }
 
-mod viking_states {
+pub mod viking_states {
     #[derive(Default)]
     pub struct UnsafeSide;
     #[derive(Default)]
