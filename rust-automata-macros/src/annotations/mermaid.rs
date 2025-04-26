@@ -6,6 +6,8 @@ use quote::quote;
 fn transition_label(tr: &parser::Transition) -> String {
     use crate::annotations::doc_link;
     use crate::util;
+    use crate::GUARD_PREFIX;
+    use crate::HANDLE_PREFIX;
 
     let mut label = String::new();
     if let Some(ref i) = tr.input {
@@ -23,16 +25,16 @@ fn transition_label(tr: &parser::Transition) -> String {
     }
     if let Some(ref g) = tr.guard {
         label.push_str(&format!(
-            "{0}guard&nbsp;<a href='#method.{1}'>{1}</a>",
+            "{0}&nbsp;<a href='#method.{g}'>{1}</a>",
             if label.is_empty() { "" } else { "<br>" },
-            g
+            g.to_string().replace(GUARD_PREFIX, "")
         ));
     }
     if let Some(ref h) = tr.handler {
         label.push_str(&format!(
-            "{0}via&nbsp;<a href='#method.{1}'>{1}</a>",
+            "{0}&nbsp;<a href='#method.{h}'>{1}</a>",
             if label.is_empty() { "" } else { "<br>" },
-            h
+            h.to_string().replace(HANDLE_PREFIX, "")
         ));
     }
     label
@@ -51,6 +53,7 @@ pub fn attr(m: &parser::MachineAttr) -> TokenStream2 {
     let mut md = String::new();
     writeln!(md, "///```mermaid").unwrap();
     writeln!(md, "///stateDiagram-v2").unwrap();
+    writeln!(md, "///    classDef selfLoop fill:#eee,stroke-width:0px,shape:rectangle,margin:0,padding:0").unwrap();
     writeln!(md, "///    [*] --> {}", initial).unwrap();
 
     // Clickable state aliases
@@ -66,11 +69,18 @@ pub fn attr(m: &parser::MachineAttr) -> TokenStream2 {
     }
 
     // Transitions
-    for tr in &m.transitions {
+    for (i, tr) in m.transitions.iter().enumerate() {
         let from = util::last(&tr.from_state);
         let to = util::last(&tr.to_state);
         let label = transition_label(tr);
-        writeln!(md, "///    {} --> {}: {}", from, to, label).unwrap();
+        if from == to {
+            writeln!(md, "///    state \"{label}\" as tran_{from}_{to}_{i}").unwrap();
+            writeln!(md, "///    class tran_{from}_{to}_{i} selfLoop").unwrap();
+            writeln!(md, "///    {from} --> tran_{from}_{to}_{i}").unwrap();
+            writeln!(md, "///    tran_{from}_{to}_{i} --> {from}").unwrap();
+        } else {
+            writeln!(md, "///    {from} --> {to}: {label}").unwrap();
+        }
     }
 
     writeln!(md, "///```").unwrap();

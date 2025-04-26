@@ -5,10 +5,10 @@ test:
 	TMPDIR=~/tmp cargo test
 
 doc:
-	RUSTDOCFLAGS="--html-in-header ./examples/assets/graphviz-header.html" cargo doc --no-deps
+	RUSTDOCFLAGS="--html-in-header ./examples/assets/graphviz-header.html" cargo doc --no-deps --document-private-items
 
 doc-open:
-	RUSTDOCFLAGS="--html-in-header ./examples/assets/graphviz-header.html" cargo doc --no-deps --open
+	RUSTDOCFLAGS="--html-in-header ./examples/assets/graphviz-header.html" cargo doc --no-deps --document-private-items--open
 
 clean:
 	cargo clean

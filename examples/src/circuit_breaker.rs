@@ -20,14 +20,14 @@
 //! ### Automatic Recovery After Timeout
 //!
 //! One of the features of the circuit breaker pattern is *automatic recovery*. After
-//! the breaker trips and enters the [`Open`] state due to a series of failures, it will stay
+//! the breaker trips and enters the [`states::Open`] state due to a series of failures, it will stay
 //! in that state for a pre-configured timeout period. Once the timeout elapses, the circuit
-//! breaker will automatically transition to the [`HalfOpen`] state.
+//! breaker will automatically transition to the [`states::HalfOpen`] state.
 //!
-//! In the [`HalfOpen`] state, the system attempts to make a small number of requests to see
+//! In the [`states::HalfOpen`] state, the system attempts to make a small number of requests to see
 //! if the underlying service has recovered. If the service responds successfully, the breaker
-//! will transition back to the [`Closed`] state, and normal operations resume. If failures persist,
-//! the breaker will revert to the [`Open`] state, and the recovery process starts again after
+//! will transition back to the [`states::Closed`] state, and normal operations resume. If failures persist,
+//! the breaker will revert to the [`states::Open`] state, and the recovery process starts again after
 //! another timeout.
 //!
 //! This mechanism allows the system to "self-heal" without manual intervention, automatically
@@ -75,23 +75,20 @@ pub mod inputs {
     pub struct Fail;
 }
 
-use inputs::*;
-use states::*;
-
 #[state_machine(
-    inputs(Success, Fail),
-    states(Closed, Open, HalfOpen),
+    inputs(inputs::Success, inputs::Fail),
+    states(states::Closed, states::Open, states::HalfOpen),
     outputs(),
     transitions(
-        (Closed, Success) -> (Closed) = handle_count_reset,
-        (Closed, Fail)    -> (Closed) :  guard_below_threshold = handle_count_increment,
-        (Closed, Fail)    -> (Open)   :  guard_not_below_threshold = handle_trip_breaker,
+        (states::Closed, inputs::Success) -> (states::Closed) = handle_count_reset,
+        (states::Closed, inputs::Fail)    -> (states::Closed) :  guard_below_threshold = handle_count_increment,
+        (states::Closed, inputs::Fail)    -> (states::Open)   :  guard_not_below_threshold = handle_trip_breaker,
 
-        (Open) -> (Open)     :  guard_not_timeout,
-        (Open) -> (HalfOpen) :  guard_timeout,
+        (states::Open) -> (states::Open)     :  guard_not_timeout,
+        (states::Open) -> (states::HalfOpen) :  guard_timeout,
 
-        (HalfOpen, Fail)    -> (Open) = handle_setup_timer,
-        (HalfOpen, Success) -> (Closed)  // Resumes normal operation
+        (states::HalfOpen, inputs::Fail)    -> (states::Open) = handle_setup_timer,
+        (states::HalfOpen, inputs::Success) -> (states::Closed)  // Resumes normal operation
     ),
     derive(Debug)
 )]
@@ -102,35 +99,35 @@ pub struct CircuitBreaker {
 }
 
 impl CircuitBreaker {
-    fn guard_below_threshold(&self, closed: &Closed) -> bool {
+    fn guard_below_threshold(&self, closed: &states::Closed) -> bool {
         closed.count < self.threshold
     }
-    fn guard_timeout(&self, open: &Open) -> bool {
+    fn guard_timeout(&self, open: &states::Open) -> bool {
         open.timer.is_timeout()
     }
-    fn guard_not_below_threshold(&self, closed: &Closed) -> bool {
+    fn guard_not_below_threshold(&self, closed: &states::Closed) -> bool {
         closed.count >= self.threshold
     }
-    fn guard_not_timeout(&self, open: &Open) -> bool {
+    fn guard_not_timeout(&self, open: &states::Open) -> bool {
         !open.timer.is_timeout()
     }
-    fn handle_count_reset(&mut self, _: Closed, _: Success) -> Closed {
-        Closed { count: 0 }
+    fn handle_count_reset(&mut self, _: states::Closed, _: inputs::Success) -> states::Closed {
+        states::Closed { count: 0 }
     }
-    fn handle_count_increment(&mut self, closed: Closed, _: Fail) -> Closed {
-        Closed {
+    fn handle_count_increment(&mut self, closed: states::Closed, _: inputs::Fail) -> states::Closed {
+        states::Closed {
             count: closed.count + 1,
         }
     }
-    fn setup_timer(&self) -> Open {
-        Open {
+    fn setup_timer(&self) -> states::Open {
+        states::Open {
             timer: Timer::new(self.clock.clone_box(), self.timeout),
         }
     }
-    fn handle_trip_breaker(&mut self, _: Closed, _: Fail) -> Open {
+    fn handle_trip_breaker(&mut self, _: states::Closed, _: inputs::Fail) -> states::Open {
         self.setup_timer()
     }
-    fn handle_setup_timer(&mut self, _: HalfOpen, _: Fail) -> Open {
+    fn handle_setup_timer(&mut self, _: states::HalfOpen, _: inputs::Fail) -> states::Open {
         self.setup_timer()
     }
 }
@@ -144,23 +141,23 @@ fn circuit_breaker() {
         timeout: TimestampDelta::from_secs(5),
     };
 
-    let mut cb = StateMachine::new(circuit_breaker, Closed::default());
+    let mut cb = StateMachine::new(circuit_breaker, states::Closed::default());
 
     // Pass a request when the circuit breaker is closed.
-    assert!(cb.can_consume::<Success>());
-    assert!(cb.can_consume::<Fail>());
-    cb.consume(Success);
+    assert!(cb.can_consume::<inputs::Success>());
+    assert!(cb.can_consume::<inputs::Fail>());
+    cb.consume(inputs::Success);
     assert!(cb.state().is_closed());
 
     // Trip the circuit
-    assert!(cb.can_consume::<Fail>());
-    assert!(cb.can_consume::<Success>());
-    cb.consume(Fail);
+    assert!(cb.can_consume::<inputs::Fail>());
+    assert!(cb.can_consume::<inputs::Success>());
+    cb.consume(inputs::Fail);
     assert!(cb.state().is_open());
 
     // Can't pass request when the circuit breaker is open.
-    assert!(!cb.can_consume::<Success>());
-    assert!(!cb.can_consume::<Fail>());
+    assert!(!cb.can_consume::<inputs::Success>());
+    assert!(!cb.can_consume::<inputs::Fail>());
     // But can attempt to expire the timer
     cb.step();
     assert!(cb.state().is_open());
@@ -169,11 +166,11 @@ fn circuit_breaker() {
     clock.advance_by(TimestampDelta::from_secs(5));
     cb.step();
     assert!(cb.state().is_half_open());
-    assert!(cb.can_consume::<Success>());
-    assert!(cb.can_consume::<Fail>());
+    assert!(cb.can_consume::<inputs::Success>());
+    assert!(cb.can_consume::<inputs::Fail>());
 
     // Pass a success
-    cb.consume(Success);
+    cb.consume(inputs::Success);
     assert!(cb.state().is_closed());
 }
 
@@ -192,10 +189,10 @@ impl FaultyRoute {
 
         if self.circuit_breaker.state().is_closed() || self.circuit_breaker.state().is_half_open() {
             if fail_response {
-                self.circuit_breaker.consume(Fail);
+                self.circuit_breaker.consume(inputs::Fail);
                 None
             } else {
-                self.circuit_breaker.consume(Success);
+                self.circuit_breaker.consume(inputs::Success);
                 let response = request * 3 + 1;
                 Some(response)
             }
@@ -217,7 +214,7 @@ pub fn faulty_route() {
         timeout,
     };
     let mut faulty_route = FaultyRoute {
-        circuit_breaker: StateMachine::new(circuit_breaker, Closed::default()),
+        circuit_breaker: StateMachine::new(circuit_breaker, states::Closed::default()),
     };
     let good_request = 1;
     let bad_request = 2;

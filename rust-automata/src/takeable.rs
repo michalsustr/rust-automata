@@ -1,4 +1,4 @@
-/// Originally taken from https://github.com/kyp44/takeable
+/// Originally taken from <https://github.com/kyp44/takeable>
 use core::{
     fmt::Display,
     ops::{Deref, DerefMut},

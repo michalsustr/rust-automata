@@ -10,6 +10,7 @@ pub use rust_automata_macros::Display;
 pub use aquamarine::aquamarine;
 
 pub mod clock;
+#[doc(hidden)]
 mod takeable;
 pub mod timestamp;
 
