@@ -8,7 +8,7 @@ doc:
 	cargo doc --no-deps --document-private-items
 
 doc-open:
-	cargo doc --no-deps --document-private-items--open
+	cargo doc --no-deps --document-private-items --open
 
 clean:
 	cargo clean
