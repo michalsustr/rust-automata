@@ -29,7 +29,6 @@ See [examples](https://github.com/michalsustr/rust-automata/tree/main/examples) 
 
 Here is a simple example to give a quick taste:
 
-TODO: use timer for vikings
 ```rust
 mod example {
 use rust_automata::*;
@@ -86,6 +85,10 @@ m.step();
 m.step();
 assert!(m.state().is_s3());
 ```
+
+This is how the example looks like in the docs:
+
+![Example doc](./readme-example.gif)
 
 ## Why would you want to use this crate?
 
