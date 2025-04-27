@@ -95,7 +95,7 @@ mod building_blocks {
         }
     }
 
-    pub fn instantiate_vals(tr: &parser::Transition, state_var: &Ident) -> TokenStream2 {
+    pub fn instantiate_vals(tr: &parser::Transition, state_var: &Ident, nothing_ident: &Ident) -> TokenStream2 {
         let next_val = if key(&tr.from_state) == key(&tr.to_state) {
             quote! { #state_var }
         } else {
@@ -106,7 +106,7 @@ mod building_blocks {
             let out_path = tr.output.as_ref().unwrap();
             quote! { super::#out_path::default() }
         } else {
-            quote! { () }
+            quote! { #nothing_ident::default() }
         };
 
         quote! {
@@ -119,6 +119,7 @@ mod building_blocks {
         tr: &Transition,
         state_var: &Ident,
         input_var: &Ident,
+        nothing_ident: &Ident,
     ) -> (TokenStream2, TokenStream2) {
         match &tr.handler {
             Some(handler) if handler.to_string().starts_with(HANDLE_PREFIX) => {
@@ -129,20 +130,20 @@ mod building_blocks {
                         quote! { (next_val, out_val) = self.#handler(#state_var, #input_var); }
                     }
                     (true, false) => {
-                        quote! { next_val = self.#handler(#state_var, #input_var); out_val = (); }
+                        quote! { next_val = self.#handler(#state_var, #input_var); out_val = #nothing_ident::default(); }
                     }
                     (false, true) => quote! { (next_val, out_val) = self.#handler(#state_var); },
                     (false, false) => {
-                        quote! { next_val = self.#handler(#state_var); out_val = (); }
+                        quote! { next_val = self.#handler(#state_var); out_val = #nothing_ident::default(); }
                     }
                 };
                 (call, quote! {})
             }
             Some(callback) => (
                 quote! { self.#callback(); },
-                instantiate_vals(tr, state_var),
+                instantiate_vals(tr, state_var, nothing_ident),
             ),
-            None => (quote! {}, instantiate_vals(tr, state_var)),
+            None => (quote! {}, instantiate_vals(tr, state_var, nothing_ident)),
         }
     }
 
@@ -241,6 +242,20 @@ mod building_blocks {
             .collect()
     }
 
+    pub fn generate_enum_variants(ids: &Vec<&Ident>) -> Vec<proc_macro2::TokenStream> {
+        ids.iter()
+            .enumerate()
+            .map(|(idx, id)| {
+                let idx = format!("{}_usize", idx + 1);
+                let idx_token = syn::parse_str::<syn::Expr>(&idx).unwrap();
+                let id_token = id.to_string();
+                quote! {
+                    #idx_token => #id_token
+                }
+            })
+            .collect()
+    }
+
     pub fn build_getters(alphabet_paths: &[Path]) -> TokenStream2 {
         let getters = alphabet_paths.iter().map(|p| {
             let id = last(p);
@@ -291,20 +306,22 @@ mod building_blocks {
     pub fn build_alphabet(
         derive_attr: &TokenStream2,
         enum_ident: &Ident,
+        nothing_ident: &Ident,
         alphabet_paths: &Vec<Path>,
     ) -> TokenStream2 {
         let alphabet_ids: Vec<_> = alphabet_paths.iter().map(last).collect();
         let enumerable_ids_alphabet = generate_enum_matches(&alphabet_ids);
+        let enumerable_variants = generate_enum_variants(&alphabet_ids);
         let alphabet_getters = build_getters(alphabet_paths);
         let alphabet_conversions = build_conversions(enum_ident, alphabet_paths);
         quote! {
             #derive_attr
             pub enum #enum_ident {
-                Nothing(()),
+                Nothing(#nothing_ident),
                 #( #alphabet_ids ( super::#alphabet_paths ) ),*
             }
             impl rust_automata::Alphabet for #enum_ident {
-                fn nothing() -> Self { Self::Nothing(()) }
+                fn nothing() -> Self { Self::Nothing(#nothing_ident) }
                 fn any(&self) -> bool { !matches!(self, Self::Nothing(_)) }
             }
             impl rust_automata::Enumerable<#enum_ident> for #enum_ident {
@@ -314,11 +331,35 @@ mod building_blocks {
                         #( #enumerable_ids_alphabet ),*
                     }
                 }
+                fn get_variant(id: &rust_automata::EnumId<#enum_ident>) -> &'static str {
+                    match id.id {
+                        0_usize => "Nothing",
+                        #( #enumerable_variants, )*
+                        _ => panic!("Invalid symbol requested from id: {}", id.id),
+                    }
+                }
             }
             impl #enum_ident {
                 #alphabet_getters
             }
             #alphabet_conversions
+
+            impl From<#nothing_ident> for #enum_ident {
+                fn from(i: #nothing_ident) -> Self { Self::Nothing(i) }
+            }
+            impl rust_automata::Enumerated<#enum_ident> for #nothing_ident {
+                fn enum_id() -> rust_automata::EnumId<#enum_ident> {
+                    rust_automata::EnumId::new(0)
+                }
+            }
+            impl From<#enum_ident> for #nothing_ident {
+                fn from(o: #enum_ident) -> Self {
+                    match o {
+                        #enum_ident::Nothing(v) => v,
+                        _ => panic!("Invalid symbol requested from {}", stringify!(#enum_ident)),
+                    }
+                }
+            }
         }
     }
 
@@ -329,6 +370,7 @@ mod building_blocks {
     ) -> TokenStream2 {
         let state_ids: Vec<_> = state_paths.iter().map(last).collect();
         let enumerable_ids_states = generate_enum_matches(&state_ids);
+        let enumerable_variants = generate_enum_variants(&state_ids);
         let state_getters = build_getters(state_paths);
         let state_conversions = build_conversions(enum_ident, state_paths);
 
@@ -347,6 +389,13 @@ mod building_blocks {
                     match self {
                         Self::Failure(_) => rust_automata::EnumId::new(0),
                         #( #enumerable_ids_states ),*
+                    }
+                }
+                fn get_variant(id: &rust_automata::EnumId<#enum_ident>) -> &'static str {
+                    match id.id {
+                        0_usize => "Failure",
+                        #( #enumerable_variants, )*
+                        _ => panic!("Invalid symbol requested from id: {}", id.id),
                     }
                 }
             }
@@ -401,7 +450,8 @@ pub fn state_machine(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input_enum_ident = format_ident!("{}Input", base);
     let output_enum_ident = format_ident!("{}Output", base);
     let initial_state_ident = &m.states.first().unwrap();
-    let nothing_ident = format_ident!("Nothing");
+    let nothing_ident = format_ident!("{}Nothing", base);
+    let nothing_enum_ident = format_ident!("Nothing");
     // pre‑compute frequently‑used lists
     let state_paths = &m.states;
     let input_paths = &m.inputs;
@@ -410,11 +460,11 @@ pub fn state_machine(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     // Simplify derive attribute generation
     let (derive_attr, derive_struct) = if derives.is_empty() {
-        (quote!( #[derive(Display)] ), quote! {})
+        (quote!( #[derive(Display)] ), quote!( #[derive(Default)] ))
     } else {
         (
             quote!( #[derive(Display, #( #derives ),* )] ),
-            quote! {#[derive(Default, #( #derives ),* )]},
+            quote!( #[derive(Default, #( #derives ),* )] ),
         )
     };
 
@@ -436,8 +486,8 @@ pub fn state_machine(attr: TokenStream, item: TokenStream) -> TokenStream {
     let transition_match_arms = m.transitions.iter().enumerate().map(|(idx, tr)| {
         let from_id = last(&tr.from_state);
         let to_id = last(&tr.to_state);
-        let inp_id = tr.input.as_ref().map(last).unwrap_or(&nothing_ident);
-        let out_id = tr.output.as_ref().map(last).unwrap_or(&nothing_ident);
+        let inp_id = tr.input.as_ref().map(last).unwrap_or(&nothing_enum_ident);
+        let out_id = tr.output.as_ref().map(last).unwrap_or(&nothing_enum_ident);
         let state_var = format_ident!("state{idx}");
         let input_var = format_ident!("input{idx}");
         let to_path = &tr.to_state;
@@ -448,10 +498,10 @@ pub fn state_machine(attr: TokenStream, item: TokenStream) -> TokenStream {
             },
             None => quote! {
                 let next_val: super::#to_path;
-                let out_val:  ();
+                let out_val: #nothing_ident;
             },
         };
-        let (transition_call, value_instantiation) = build_handler_code(tr, &state_var, &input_var);
+        let (transition_call, value_instantiation) = build_handler_code(tr, &state_var, &input_var, &nothing_ident);
         let guard_call = build_guard_code(tr, &state_var);
 
         quote! {
@@ -477,8 +527,8 @@ pub fn state_machine(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     });
 
-    let input_alphabet = build_alphabet(&derive_attr, &input_enum_ident, input_paths);
-    let output_alphabet = build_alphabet(&derive_attr, &output_enum_ident, output_paths);
+    let input_alphabet = build_alphabet(&derive_attr, &input_enum_ident, &nothing_ident, input_paths);
+    let output_alphabet = build_alphabet(&derive_attr, &output_enum_ident, &nothing_ident, output_paths);
     let state_set = build_set(&derive_attr, &state_enum_ident, state_paths);
 
     let sig_checks = m
@@ -503,6 +553,9 @@ pub fn state_machine(attr: TokenStream, item: TokenStream) -> TokenStream {
         #vis mod #internal_mod {
             use rust_automata::*;
 
+            #derive_struct
+            pub struct #nothing_ident;
+
             #state_set
             #input_alphabet
             #output_alphabet
@@ -512,6 +565,7 @@ pub fn state_machine(attr: TokenStream, item: TokenStream) -> TokenStream {
                 type State  = #state_enum_ident;
                 type Output = #output_enum_ident;
                 type InitialState = super::#initial_state_ident;
+                type Nothing = #nothing_ident;
                 fn transition(
                     &mut self,
                     mut state: rust_automata::Takeable<Self::State>,

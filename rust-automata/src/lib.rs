@@ -43,6 +43,7 @@ pub trait StateTrait: Display {
 #[doc(hidden)]
 pub trait Enumerable<ForEnum> {
     fn enum_id(&self) -> EnumId<ForEnum>;
+    fn get_variant(id: &EnumId<ForEnum>) -> &'static str;
 }
 
 // Get id in the wrapped struct. For internal use only.
@@ -88,14 +89,16 @@ impl<ForEnum> EnumId<ForEnum> {
 /// For internal use only.
 #[doc(hidden)]
 pub trait StateMachineImpl {
-    /// The input alphabet.
+    /// The input alphabet enum.
     type Input: Alphabet + Enumerable<Self::Input>;
-    /// The set of possible states.
+    /// The possible states enum.
     type State: StateTrait + Enumerable<Self::State>;
-    /// The output alphabet.
+    /// The output alphabet enum.
     type Output: Alphabet + Enumerable<Self::Output>;
-    /// The initial state. May be needed to be supplied manually by the user.
+    /// The initial state (an actual enum value). May be needed to be supplied manually by the user.
     type InitialState: Enumerated<Self::State> + Into<Self::State>;
+    /// The nothing input/output symbol.
+    type Nothing: Enumerated<Self::Input> + Enumerated<Self::Output> + Into<Self::Input> + From<Self::Output> + Default;
     /// The transition function that takes ownership of the current state and returns
     /// a new state along with any output based on the provided input.
     fn transition(
@@ -132,25 +135,25 @@ where
     /// Only change the state, do not accept any input and do not produce any output.
     #[inline]
     pub fn step(&mut self) {
-        let _: T::Output = self.relay::<T::Input, T::Output>(T::Input::nothing());
+        self.relay::<T::Nothing, T::Nothing>(T::Nothing::default());
     }
 
     /// Produce an output, given no input.
     #[inline]
-    pub fn produce<O: From<T::Output>>(&mut self) -> O {
-        self.relay::<T::Input, O>(T::Input::nothing())
+    pub fn produce<O: From<T::Output> + Enumerated<T::Output>>(&mut self) -> O {
+        self.relay::<T::Nothing, O>(T::Nothing::default())
     }
 
     /// Consume an input, do not care about the output.
     #[inline]
-    pub fn consume<I: Into<T::Input>>(&mut self, input: I) {
-        let _: T::Output = self.relay::<I, T::Output>(input);
+    pub fn consume<I: Into<T::Input> + Enumerated<T::Input>>(&mut self, input: I) {
+        self.relay::<I, T::Output>(input);
     }
 
     /// Consume an input, produce an output.
     #[inline]
-    pub fn relay<I: Into<T::Input>, O: From<T::Output>>(&mut self, input: I) -> O {
-        let enum_input = input.into();
+    pub fn relay<I: Into<T::Input> + Enumerated<T::Input>, O: From<T::Output>>(&mut self, input: I) -> O {
+        let enum_input: T::Input = input.into();
         // Store only the ids so we don't have to prematurely call `to_string` on the enums.
         let from_id = self.state.as_ref().enum_id();
         let input_id = enum_input.enum_id();
@@ -165,10 +168,9 @@ where
         self.state = next_state;
 
         if self.state.is_failure() {
-            panic!(
-                "Invalid transition from {} using input {}",
-                from_id.id, input_id.id
-            );
+            let from_str = T::State::get_variant(&from_id);
+            let input_str = T::Input::get_variant(&input_id);
+            panic!("Invalid transition from {from_str} using input {input_str}");
         }
 
         O::from(output)
@@ -176,7 +178,7 @@ where
 
     #[inline]
     pub fn can_step(&mut self) -> bool {
-        let enum_input = EnumId::new(0);
+        let enum_input = T::Nothing::enum_id();
         let enum_state = self.state.as_ref();
         let actual_output = self.data.can_transition(enum_state, enum_input);
         actual_output.is_some()
@@ -187,7 +189,7 @@ where
     where
         O: Enumerated<T::Output>,
     {
-        let enum_input = EnumId::new(0);
+        let enum_input = T::Nothing::enum_id();
         let enum_state = self.state.as_ref();
         let actual_output = self.data.can_transition(enum_state, enum_input);
         let expected_enum = O::enum_id();
