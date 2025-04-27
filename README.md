@@ -88,7 +88,7 @@ assert!(m.state().is_s3());
 
 This is how the example looks like in the docs:
 
-![Example doc](./readme-example.gif)
+![Example doc](./readme_example.gif)
 
 ## Why would you want to use this crate?
 
