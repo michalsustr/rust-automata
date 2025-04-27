@@ -1,0 +1,3 @@
+flip_flop::main:
+ xor     eax, eax
+ ret

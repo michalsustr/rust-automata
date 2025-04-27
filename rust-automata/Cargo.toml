@@ -25,3 +25,9 @@ serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]                            
 trybuild = "1.0"
+cargo-asm = "0.1.16"
+cargo-expand = "1.0.106"
+
+[[bin]]
+name = "flip_flop"
+path = "tests/asm/flip_flop.rs"

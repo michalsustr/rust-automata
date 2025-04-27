@@ -89,11 +89,11 @@ impl<ForEnum> EnumId<ForEnum> {
 #[doc(hidden)]
 pub trait StateMachineImpl {
     /// The input alphabet.
-    type Input: Alphabet;
+    type Input: Alphabet + Enumerable<Self::Input>;
     /// The set of possible states.
     type State: StateTrait + Enumerable<Self::State>;
     /// The output alphabet.
-    type Output: Alphabet;
+    type Output: Alphabet + Enumerable<Self::Output>;
     /// The initial state. May be needed to be supplied manually by the user.
     type InitialState: Enumerated<Self::State> + Into<Self::State>;
     /// The transition function that takes ownership of the current state and returns
@@ -130,25 +130,30 @@ where
     }
 
     /// Only change the state, do not accept any input and do not produce any output.
+    #[inline]
     pub fn step(&mut self) {
         let _: T::Output = self.relay::<T::Input, T::Output>(T::Input::nothing());
     }
 
     /// Produce an output, given no input.
+    #[inline]
     pub fn produce<O: From<T::Output>>(&mut self) -> O {
         self.relay::<T::Input, O>(T::Input::nothing())
     }
 
     /// Consume an input, do not care about the output.
+    #[inline]
     pub fn consume<I: Into<T::Input>>(&mut self, input: I) {
         let _: T::Output = self.relay::<I, T::Output>(input);
     }
 
     /// Consume an input, produce an output.
+    #[inline]
     pub fn relay<I: Into<T::Input>, O: From<T::Output>>(&mut self, input: I) -> O {
         let enum_input = input.into();
-        let from_str = self.state.as_ref().to_string();
-        let input_str = enum_input.to_string();
+        // Store only the ids so we don't have to prematurely call `to_string` on the enums.
+        let from_id = self.state.as_ref().enum_id();
+        let input_id = enum_input.enum_id();
 
         // Take ownership of the current state
         let current_state = std::mem::replace(&mut self.state, Takeable::new(T::State::failure()));
@@ -162,13 +167,14 @@ where
         if self.state.is_failure() {
             panic!(
                 "Invalid transition from {} using input {}",
-                from_str, input_str
+                from_id.id, input_id.id
             );
         }
 
         O::from(output)
     }
 
+    #[inline]
     pub fn can_step(&mut self) -> bool {
         let enum_input = EnumId::new(0);
         let enum_state = self.state.as_ref();
@@ -176,6 +182,7 @@ where
         actual_output.is_some()
     }
 
+    #[inline]
     pub fn can_produce<O>(&mut self) -> bool
     where
         O: Enumerated<T::Output>,
@@ -190,6 +197,7 @@ where
         }
     }
 
+    #[inline]
     pub fn can_consume<I>(&mut self) -> bool
     where
         I: Enumerated<T::Input>,
@@ -200,6 +208,7 @@ where
         actual_output.is_some()
     }
 
+    #[inline]
     pub fn can_relay<I, O>(&mut self) -> bool
     where
         I: Enumerated<T::Input>,
