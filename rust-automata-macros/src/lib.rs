@@ -590,6 +590,10 @@ pub fn state_machine(attr: TokenStream, item: TokenStream) -> TokenStream {
                         (_, _) => None,
                     }
                 }
+
+                fn name() -> &'static str {
+                    stringify!(#machine_ident)
+                }
             }
         }
     };

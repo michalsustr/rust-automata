@@ -17,6 +17,7 @@ pub mod timestamp;
 use core::fmt::Display;
 use std::hash::Hash;
 use std::marker::PhantomData;
+use log;
 
 #[doc(hidden)]
 pub use takeable::Takeable;
@@ -112,6 +113,8 @@ pub trait StateMachineImpl {
         state: &Self::State,
         input: EnumId<Self::Input>,
     ) -> Option<EnumId<Self::Output>>;
+    /// The name of the state machine.
+    fn name() -> &'static str;
 }
 
 /// Encapsulates the state and other SM data and expose transition functions.
@@ -171,8 +174,15 @@ where
             let from_str = T::State::get_variant(&from_id);
             let input_str = T::Input::get_variant(&input_id);
             panic!("Invalid transition from {from_str} using input {input_str}");
+        } else {
+            log::debug!("{}: ({}, {}) -> ({}, {})", 
+                T::name(),
+                T::State::get_variant(&from_id), 
+                T::Input::get_variant(&input_id),
+                T::State::get_variant(&self.state.as_ref().enum_id()),
+                T::Output::get_variant(&output.enum_id()),
+            );
         }
-
         O::from(output)
     }
 

@@ -125,6 +125,7 @@ impl Torch {
 #[test]
 fn vikings_successfully_cross() {
     use events::*;
+    env_logger::init();
 
     let clock = ManualClock::new();
 
