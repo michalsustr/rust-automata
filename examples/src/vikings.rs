@@ -54,22 +54,21 @@ pub mod viking_states {
     )
 )]
 pub struct Viking {
-    delay: TimestampDelta,
-    stopwatch: Stopwatch,
+    timer: Timer,
 }
 
 impl Viking {
     pub fn fsm(clock: &dyn Clock, delay: TimestampDelta) -> StateMachine<Self> {
-        let stopwatch = Stopwatch::new(clock.clone_box());
-        StateMachine::new(Self { delay, stopwatch }, viking_states::UnsafeSide)
+        let timer = Timer::new(clock.clone_box(), delay);
+        StateMachine::new(Self { timer }, viking_states::UnsafeSide)
     }
 
     fn reset_stopwatch(&mut self) {
-        self.stopwatch.reset();
+        self.timer.reset();
     }
 
     fn check_delay(&self) -> bool {
-        self.stopwatch.elapsed() >= self.delay
+        self.timer.is_timeout()
     }
 }
 
