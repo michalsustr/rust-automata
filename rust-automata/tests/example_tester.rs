@@ -14,7 +14,7 @@ fn asm_generation() {
         .expect("Failed to execute `cargo asm` -- is it installed?");
 
     // Check it matches the expected output
-    let expected_output = std::fs::read_to_string("tests/asm/flip_flop.stdout")
+    let expected_output = std::fs::read_to_string("tests/asm/flip_flop.expected_asm")
         .expect("Failed to read expected test output");
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected_output);
 }

@@ -95,6 +95,7 @@ This is how the example looks like in the docs:
 
 - You're looking for a simple way to specify and implement finite state machines that can have arbitrary data in states, inputs and outputs.
 - You want to make sure your implementation and model specification match.
+- You're looking for an efficient implementation: see [asm tests](https://github.com/michalsustr/rust-automata/tree/main/rust-automata/tests/asm)
 
 ## When you should not use this crate?
 
