@@ -82,7 +82,7 @@ pub mod inputs {
     transitions(
         (states::Closed, inputs::Success) -> (states::Closed) = handle_count_reset,
         (states::Closed, inputs::Fail)    -> (states::Closed) :  guard_below_threshold = handle_count_increment,
-        (states::Closed, inputs::Fail)    -> (states::Open)   :  guard_not_below_threshold = handle_trip_breaker,
+        (states::Closed, inputs::Fail)    -> (states::Open)   :  ! guard_below_threshold = handle_trip_breaker,
 
         (states::Open) -> (states::Open)     :  !guard_timeout,
         (states::Open) -> (states::HalfOpen) :  guard_timeout,
@@ -104,9 +104,6 @@ impl CircuitBreaker {
     }
     fn guard_timeout(&self, open: &states::Open) -> bool {
         open.timer.is_timeout()
-    }
-    fn guard_not_below_threshold(&self, closed: &states::Closed) -> bool {
-        closed.count >= self.threshold
     }
     fn handle_count_reset(&mut self, _: states::Closed, _: inputs::Success) -> states::Closed {
         states::Closed { count: 0 }
